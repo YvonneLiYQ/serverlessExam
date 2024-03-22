@@ -130,8 +130,7 @@ export class RestAPIStack extends cdk.Stack {
         },
       }
     );
-    const getMoviesAwardByAwardBodyFn
-    = new lambdanode.NodejsFunction(
+    const getMoviesAwardByAwardBodyFn = new lambdanode.NodejsFunction(
       this,
       "getMoviesAwardByAwardBodyFn",
       {
@@ -146,25 +145,17 @@ export class RestAPIStack extends cdk.Stack {
         },
       }
     );
-    const appCommonFnProps = {
-      architecture: lambda.Architecture.ARM_64,
-      timeout: cdk.Duration.seconds(10),
-      memorySize: 128,
-      runtime: lambda.Runtime.NODEJS_16_X,
-      handler: "handler",
-      environment: {
-          REGION: cdk.Aws.REGION,
-      },
-    };
-    
+ 
     
 
     const getminFn = new node.NodejsFunction(this, "Translate", {
-      ...appCommonFnProps,
+      architecture: lambda.Architecture.ARM_64,
+        runtime: lambda.Runtime.NODEJS_16_X,
       entry: "./lambdas/translate.ts",
       environment: {
-          ...appCommonFnProps.environment, 
+          
           MIN_TABLE_NAME: movieAwardsTable.tableName, 
+          REGION: "eu-west-1",
       },
     }
     )
@@ -242,8 +233,8 @@ export class RestAPIStack extends cdk.Stack {
     );
     const getmin = awardMovieEndpoint.addResource('min');
     getmin.addMethod('GET', new apig.LambdaIntegration(getminFn));
-      }
-    }
+      
+
 
   
     // Permissions;
