@@ -1,64 +1,80 @@
-import { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { MovieAward } from "../shared/types";
-const ddbClient = new DynamoDBClient({ region: process.env.REGION });
-const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
-type ResponseBody = {
+import { APIGatewayProxyHandlerV2 } from "aws-lambda";  
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";  
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";  
   
-    award?: MovieAward[];
+const ddbDocClient = createDDbDocClient();  
   
-};
-export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-    // 获取路径参数
-    const awardBody = event.pathParameters?.awardBody;
-    const movieId = event.pathParameters?.movieId
-      ? parseInt(event.pathParameters.movieId)
-      : undefined;
-
-    if (!awardBody || !movieId) {
-        return {
-            statusCode: 400,
-            body: JSON.stringify({ message: "Missing awardBody or movieId in path parameters" }),
-        };
-    }
-
-
-    if (isNaN(movieId)) {
-        return {
-            statusCode: 400,
-            body: JSON.stringify({ message: "Invalid movieId" }),
-        };
-    }
-
-    try {
-        const queryCommand = new QueryCommand({
-            TableName: process.env.AWARD_TABLE_NAME,
-            KeyConditionExpression: "movieId = :movieId AND awardBody = :awardBody",
-            ExpressionAttributeValues: {
-                ":movieId": parsedMovieId,
-                ":awardBody": awardBody,
-            },
-        });
-
-        const { Items } = await ddbDocClient.send(queryCommand);
-
-        if (Items && Items.length > 0) {
-            return {
-                statusCode: 200,
-                body: JSON.stringify(Items),
-            };
-        } else {
-            return {
-                statusCode: 404,
-                body: JSON.stringify({ message: "Awards not found for this movieId and awardBody" }),
-            };
-        }
-    } catch (error) {
-        console.error("Error fetching awards:", error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ message: "Error fetching awards", error: error.message }),
-        };
-    }
-};
+export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {  
+    try {  
+        //参数获取  
+        const parameters = event?.pathParameters;  
+        const movieId = parameters?.movieId ? parseInt(parameters.movieId) : undefined;  
+        const awardBody = parameters?.awardBody ? parameters.awardBody: undefined;  
+  
+  
+        if (!movieId || !awardBody) {  
+            return {  
+                statusCode: 400,  
+                headers: {  
+                    "content-type": "application/json",  
+                },  
+                body: JSON.stringify({ message: "Movie ID and Award Body are required" }),  
+            };  
+        }  
+  
+        const commandOutput = await ddbDocClient.send(  
+            new QueryCommand({  
+                TableName: process.env.TABLE_NAME,  
+                KeyConditionExpression: "movieId = :movieId and awardBody = :awardBody",  
+                ExpressionAttributeValues: {  
+                    ":movieId": movieId,  
+                    ":awardBody": awardBody,  
+                },  
+            })  
+        );  
+  
+        if (!commandOutput.Items || commandOutput.Items.length === 0) {  
+            return {  
+                statusCode: 404,  
+                headers: {  
+                    "content-type": "application/json",  
+                },  
+                body: JSON.stringify({ message: "No awards found for the given movie ID and award body" }),  
+            };  
+        }  
+  
+        const body = {  
+            data: commandOutput.Items,  
+        };  
+        return {  
+            statusCode: 200,  
+            headers: {  
+                "content-type": "application/json",  
+            },  
+            body: JSON.stringify(body),  
+        };  
+    } catch (error: any) {  
+        console.log(JSON.stringify(error));  
+        return {  
+            statusCode: 500,  
+            headers: {  
+                "content-type": "application/json",  
+            },  
+            body: JSON.stringify({ error }),  
+        };  
+    }  
+};  
+  
+function createDDbDocClient() {  
+    const ddbClient = new DynamoDBClient({ region: process.env.REGION });  
+    const marshallOptions = {  
+        convertEmptyValues: true,  
+        removeUndefinedValues: true,  
+        convertClassInstanceToMap: true,  
+    };  
+    const unmarshallOptions = {  
+        wrapNumbers: false,  
+    };  
+    const translateConfig = { marshallOptions, unmarshallOptions };  
+    return DynamoDBDocumentClient.from(ddbClient, translateConfig);  
+}
