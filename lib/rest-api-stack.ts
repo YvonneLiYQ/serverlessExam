@@ -130,28 +130,13 @@ export class RestAPIStack extends cdk.Stack {
         },
       }
     );
-    const getMoviesAwardByAwardBodyFn = new lambdanode.NodejsFunction(
-      this,
-      "getMoviesAwardByAwardBodyFn",
-      {
-        architecture: lambda.Architecture.ARM_64,
-        runtime: lambda.Runtime.NODEJS_16_X,
-        entry: `${__dirname}/../lambdas/getMoviesAwardByAwardBody.ts`,
-        timeout: cdk.Duration.seconds(10),
-        memorySize: 128,
-        environment: {
-          AWARD_TABLE_NAME: movieAwardsTable.tableName,
-          REGION: "eu-west-1",
-        },
-      }
-    );
  
     
 
-    const getminFn = new node.NodejsFunction(this, "Translate", {
+    const getminFn = new node.NodejsFunction(this, "geiminFn", {
       architecture: lambda.Architecture.ARM_64,
         runtime: lambda.Runtime.NODEJS_16_X,
-      entry: "./lambdas/translate.ts",
+      entry: "./lambdas/getmin.ts",
       environment: {
           
           MIN_TABLE_NAME: movieAwardsTable.tableName, 
@@ -221,10 +206,6 @@ export class RestAPIStack extends cdk.Stack {
 
     const awardsEndpoint = api.root.addResource("awards");
     const awardEndpoint = awardsEndpoint.addResource("{awardBody}");
-    awardEndpoint .addMethod(
-      "GET",
-      new apig.LambdaIntegration(getMoviesAwardByAwardBodyFn, { proxy: true })
-    );
     const awardMoviesEndpoint = awardEndpoint.addResource("movies");
     const awardMovieEndpoint = awardMoviesEndpoint.addResource("{movieId}");
     awardMovieEndpoint.addMethod(
@@ -244,6 +225,7 @@ export class RestAPIStack extends cdk.Stack {
     movieCastsTable.grantReadData(getMovieCastMembersFn);
     movieCastsTable.grantReadData(getMovieByIdFn);
     movieAwardsTable.grantReadData(getMoviesByAwardBodyAndMovieIdFn);
+    movieAwardsTable.grantReadData(getminFn);
 
   }
 }
