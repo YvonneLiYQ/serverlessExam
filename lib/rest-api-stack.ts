@@ -7,6 +7,7 @@ import { Construct } from "constructs";
 import { generateBatch } from "../shared/util";
 import { movies, movieCasts, movieAwards, movieCrew } from "../seed/movies";
 import * as apig from "aws-cdk-lib/aws-apigateway";
+import * as node from "aws-cdk-lib/aws-lambda-nodejs";
 
 export class RestAPIStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -129,7 +130,45 @@ export class RestAPIStack extends cdk.Stack {
         },
       }
     );
+    const getMoviesAwardByAwardBodyFn
+    = new lambdanode.NodejsFunction(
+      this,
+      "getMoviesAwardByAwardBodyFn",
+      {
+        architecture: lambda.Architecture.ARM_64,
+        runtime: lambda.Runtime.NODEJS_16_X,
+        entry: `${__dirname}/../lambdas/getMoviesAwardByAwardBody.ts`,
+        timeout: cdk.Duration.seconds(10),
+        memorySize: 128,
+        environment: {
+          AWARD_TABLE_NAME: movieAwardsTable.tableName,
+          REGION: "eu-west-1",
+        },
+      }
+    );
+    const appCommonFnProps = {
+      architecture: lambda.Architecture.ARM_64,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      runtime: lambda.Runtime.NODEJS_16_X,
+      handler: "handler",
+      environment: {
+          REGION: cdk.Aws.REGION,
+      },
+    };
+    
+    
 
+    const getminFn = new node.NodejsFunction(this, "Translate", {
+      ...appCommonFnProps,
+      entry: "./lambdas/translate.ts",
+      environment: {
+          ...appCommonFnProps.environment, 
+          MIN_TABLE_NAME: movieAwardsTable.tableName, 
+      },
+    }
+    )
+    
 
     new custom.AwsCustomResource(this, "moviesddbInitData", {
       onCreate: {
@@ -191,14 +230,22 @@ export class RestAPIStack extends cdk.Stack {
 
     const awardsEndpoint = api.root.addResource("awards");
     const awardEndpoint = awardsEndpoint.addResource("{awardBody}");
+    awardEndpoint .addMethod(
+      "GET",
+      new apig.LambdaIntegration(getMoviesAwardByAwardBodyFn, { proxy: true })
+    );
     const awardMoviesEndpoint = awardEndpoint.addResource("movies");
     const awardMovieEndpoint = awardMoviesEndpoint.addResource("{movieId}");
     awardMovieEndpoint.addMethod(
       "GET",
       new apig.LambdaIntegration(getMoviesByAwardBodyAndMovieIdFn, { proxy: true })
     );
+    const getmin = awardMovieEndpoint.addResource('min');
+    getmin.addMethod('GET', new apig.LambdaIntegration(getminFn));
+      }
+    }
 
-    
+  
     // Permissions;
     moviesTable.grantReadData(getMovieByIdFn);
     moviesTable.grantReadData(getAllMoviesFn);
